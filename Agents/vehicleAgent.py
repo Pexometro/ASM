@@ -9,7 +9,7 @@ class VehicleAgent(Agent):
     Apenas envia uma mensagem para o semáforo alvo a indicar presença.
     """
     async def setup(self):
-        #print(f"Agente Veículo {self.jid} a iniciar...")
+
         target_tl_jid = self.get("target_traffic_light_jid")
         if not target_tl_jid:
             print(f"VEÍCULO {self.jid} ERRO: Não foi definido um semáforo alvo!")
