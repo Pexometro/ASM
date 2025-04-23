@@ -9,14 +9,27 @@ class CoordinatorAgent(Agent):
     """
     async def setup(self):
         print(f"Agente Coordenador {self.jid} a iniciar...")
-        self.traffic_data = {} # Dicionário para guardar contagens por semáforo {tl_jid: count}
-        self.emergency_mode = {} # Dicionário para estado de emergência por semáforo {tl_jid: boolean}
-        self.traffic_light_jids = self.get("traffic_light_jids")
 
-        # Inicializar dados
+        self.traffic_data = {}           
+        self.emergency_mode = {}         
+        self.traffic_light_opposites = {} 
+        
+        self.traffic_light_jids = self.get("traffic_light_jids")
+        traffic_light_opposite_map = self.get("traffic_light_opposite")  
+
         for jid in self.traffic_light_jids:
             self.traffic_data[jid] = 0
             self.emergency_mode[jid] = False
+
+            if traffic_light_opposite_map and jid in traffic_light_opposite_map:
+                self.traffic_light_opposites[jid] = traffic_light_opposite_map[jid]
+            else:
+                self.traffic_light_opposites[jid] = None  
+
+        print(f"Agente Coordenador {self.jid} configurado.")
+        print(f"Semáforos conhecidos: {self.traffic_light_jids}")
+        print(f"Mapeamento de semáforos opostos: {self.traffic_light_opposites}")
+            
 
         # Comportamento para receber reports dos semáforos
         report_template = Template()

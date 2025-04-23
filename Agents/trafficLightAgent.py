@@ -3,6 +3,7 @@ from spade.template import Template
 from Behaviours.trafficLightBehaviours import ReceiveCommandsBehaviour, ReceiveVehicleInfoBehaviour, ReportStatusBehaviour
 import random
 from spade.message import Message
+import asyncio
 import json
 
 class TrafficLightAgent(Agent):
@@ -11,12 +12,14 @@ class TrafficLightAgent(Agent):
     Recebe comandos do coordenador, deteta veículos (via mensagem),
     e reporta o estado/tráfego.
     """
-    def __init__(self, jid, password, light_id, **kwargs):
+    def __init__(self, jid, password, light_id, passadeira, oposto, **kwargs):
         super().__init__(jid, password, **kwargs)
         self.light_id = light_id # ID único para o semáforo (ex: "TL_1")
         self.current_state = "RED" # Estado inicial
         self.vehicle_count = 0     # Contagem de veículos desde o último report
         self.coordinator_jid = None # Será definido no setup
+        self.passadeira = passadeira 
+        self.oposto = oposto
 
     async def setup(self):
         print(f"Agente Semáforo {self.jid} ({self.light_id}) a iniciar...")
@@ -45,14 +48,28 @@ class TrafficLightAgent(Agent):
 
         print(f"Agente Semáforo {self.jid} ({self.light_id}) configurado. Estado inicial: {self.current_state}")
 
-    def set_state(self, new_state, duration=None):
+    async def set_state(self, new_state, duration=None):
         """Atualiza o estado do semáforo e imprime a mudança."""
         if self.current_state != new_state:
-            self.current_state = new_state
-            duration_info = f"por {duration}s" if duration else ""
-            print(f"--- SEMÁFORO {self.light_id} ({self.jid}): MUDOU PARA {self.current_state.upper()} {duration_info} ---")
-        # Numa simulação real, aqui poder-se-ia interagir com uma GUI ou modelo físico.
-        # A gestão de duração e transição (amarelo) precisaria de lógica adicional.
+            if new_state == "RED":
+                self.current_state = "YELLOW"
+                print(f"--- SEMÁFORO {self.light_id} ({self.jid}): MUDOU PARA AMARELO ---")
+                await asyncio.sleep(5)  
+                
+                self.current_state = "RED"
+                print(f"--- SEMÁFORO {self.light_id} ({self.jid}): MUDOU PARA VERMELHO ---")
+                
+            elif new_state == "GREEN":
+                print(f"--- SEMÁFORO {self.light_id} ({self.jid}): RECEBEU O COMANDO E VAI AGUARDAR 5 SEGUNDOS PARA MUDAR PARA VERDE ---")
+                await asyncio.sleep(5) 
+                
+                self.current_state = "GREEN"
+                
+                self.reset_vehicle_count()
+                
+                print(f"--- SEMÁFORO {self.light_id} ({self.jid}): MUDOU PARA VERDE ---")
+                
+        
 
     def increment_vehicle_count(self):
         """Incrementa a contagem de veículos."""
@@ -64,12 +81,3 @@ class TrafficLightAgent(Agent):
         count = self.vehicle_count
         self.vehicle_count = 0
         return count
-
-    async def forward_emergency_alert(self, emergency_vehicle_jid):
-        """Reencaminha o alerta de emergência para o coordenador."""
-        print(f"TL {self.light_id}: Recebido alerta de emergência de {emergency_vehicle_jid}. Reencaminhando para Coordenador...")
-        msg = Message(to=self.coordinator_jid)
-        msg.set_metadata("performative", "inform")
-        msg.set_metadata("protocol", "emergency_alert")
-        msg.body = json.dumps({"emergency_vehicle_jid": emergency_vehicle_jid})
-        await self.send(msg)

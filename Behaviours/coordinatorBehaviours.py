@@ -9,8 +9,10 @@ class ReceiveReportBehaviour(CyclicBehaviour):
     """
     Recebe mensagens dos semáforos (reports de tráfego ou alertas de emergência).
     """
+    
     async def run(self):
         msg = await self.receive(timeout=60) # Espera por mensagens
+        
         if msg:
             sender_jid = str(msg.sender)
             protocol = msg.metadata.get("protocol")
@@ -21,6 +23,7 @@ class ReceiveReportBehaviour(CyclicBehaviour):
                     count = data.get("count", 0)
                     self.agent.traffic_data[sender_jid] = count
                     #print(f"COORD: Report recebido de {sender_jid}: {count} veículos.")
+                    
                 except (json.JSONDecodeError, KeyError) as e:
                     print(f"COORD ERROR: Erro ao processar report de {sender_jid}: {e}")
 
@@ -49,32 +52,51 @@ class ControlLogicBehaviour(PeriodicBehaviour):
     async def run(self):
         print("\nCOORD: Executando lógica de controlo...")
 
+        busiest_traffic_light = (None, 0)  # (jid, count)
+        
         # Lógica Simplificada:
         for tl_jid in self.agent.traffic_light_jids:
-            # 1. Prioridade Emergência: Se há emergência, força vermelho (exceto talvez o próprio?)
-            if self.agent.emergency_mode[tl_jid]:
-                print(f"COORD: Emergência detectada para {tl_jid}. Enviando comando VERMELHO.")
-                await self.send_command(tl_jid, "SET_STATE", {"state": "RED_EMERGENCY"})
-                # Reset do estado de emergência após comando (lógica pode precisar ser mais robusta)
-                # self.agent.emergency_mode[tl_jid] = False # Onde/Como resetar? Talvez após confirmação?
-                continue # Processa próximo semáforo
+            
+            # DEPOIS TRATAR DA LÓGICA AQUI DA EMERGENICIA, ESTÁ MEIO JINGADO METER MELHOR -----------------------------------
+            
+            ## 1. Prioridade Emergência: Se há emergência, força vermelho (exceto talvez o próprio?)
+            #if self.agent.emergency_mode[tl_jid]:
+            #    print(f"COORD: Emergência detectada para {tl_jid}. Enviando comando VERMELHO.")
+            #    await self.send_command(tl_jid, "SET_STATE", {"state": "RED_EMERGENCY"})
+            #    # Reset do estado de emergência após comando (lógica pode precisar ser mais robusta)
+            #    # self.agent.emergency_mode[tl_jid] = False # Onde/Como resetar? Talvez após confirmação?
+            #    continue # Processa próximo semáforo
 
             # 2. Lógica Adaptativa (Exemplo muito básico):
             #    Se um semáforo tem muito tráfego e outro pouco, ajusta tempos (simulado aqui por comando direto)
             #    NOTA: Isto é uma simplificação extrema. Uma lógica real seria muito mais complexa,
             #          envolvendo ciclos, tempos de verde/amarelo/vermelho, coordenação entre semáforos, etc.
+            
             current_count = self.agent.traffic_data.get(tl_jid, 0)
-            if current_count > TRAFFIC_THRESHOLD:
-                print(f"COORD: Tráfego ALTO ({current_count}) em {tl_jid}. Enviando comando VERDE_LONGO (simulado).")
-                # Simulação: apenas manda mudar para verde. A duração seria gerida no semáforo ou aqui.
-                await self.send_command(tl_jid, "SET_STATE", {"state": "GREEN", "duration": 30}) # Duração exemplo
-            else:
-                print(f"COORD: Tráfego BAIXO ({current_count}) em {tl_jid}. Enviando comando VERMELHO (simulado).")
-                await self.send_command(tl_jid, "SET_STATE", {"state": "RED"})
-
-            # Limpa a contagem após processar (ou acumula por mais tempo?)
-            self.agent.traffic_data[tl_jid] = 0
-
+            
+            if current_count > busiest_traffic_light[1]:
+                busiest_traffic_light = (tl_jid, current_count)
+            
+            
+            #if current_count > TRAFFIC_THRESHOLD:
+            #    print(f"COORD: Tráfego ALTO ({current_count}) em {tl_jid}. Enviando comando VERDE_LONGO (simulado).")
+            #    # Simulação: apenas manda mudar para verde. A duração seria gerida no semáforo ou aqui.
+            #    await self.send_command(tl_jid, "SET_STATE", {"state": "GREEN", "duration": 30}) # Duração exemplo
+            #else:
+            #    print(f"COORD: Tráfego BAIXO ({current_count}) em {tl_jid}. Enviando comando VERMELHO (simulado).")
+            #    await self.send_command(tl_jid, "SET_STATE", {"state": "RED"})
+#
+            ## Limpa a contagem após processar (ou acumula por mais tempo?)
+            #self.agent.traffic_data[tl_jid] = 0
+        
+        if busiest_traffic_light[0]:
+            traffic_light_oposite = self.agent.traffic_light_opposites[busiest_traffic_light[0]]
+            
+            print(f"--------------------------->  opposite: {traffic_light_oposite}")
+            if traffic_light_oposite:
+                await self.send_command(traffic_light_oposite, "SET_STATE", {"state": "RED"})
+            
+            await self.send_command(busiest_traffic_light[0], "SET_STATE", {"state": "GREEN"})
 
     async def send_command(self, target_jid, command_protocol, body_dict):
         """Envia uma mensagem de comando para um semáforo."""

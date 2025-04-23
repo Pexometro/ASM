@@ -1,0 +1,12 @@
+{
+    "semaforos": {
+        "semaforo1": {
+            "passadeira": false,
+            "oposto": "semaforo2"
+        },
+        "semaforo2": {
+            "passadeira": false,
+            "oposto": "semaforo1"
+        }
+    }
+}

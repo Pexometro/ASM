@@ -3,17 +3,22 @@ import time
 import asyncio
 import random # Importar random
 import uuid   # Para gerar IDs únicos para veículos
+import json
 
 from Agents.coordinatorAgent import CoordinatorAgent
 from Agents.trafficLightAgent import TrafficLightAgent
 from Agents.vehicleAgent import VehicleAgent
 from Agents.emergencyVehicleAgent import EmergencyVehicleAgent
 
+from dashboard import dashboard_loop
+
+
 # --- Configuração (ajusta conforme necessário) ---
-XMPP_SERVER = "thinkpad"  # Ou o teu servidor XMPP
+XMPP_SERVER = "rui-hp-envy-x360-convertible-15-ed1xxx"  # Ou o teu servidor XMPP
 PASSWORD = "NOPASSWORD"      # Password (usa uma segura se necessário)
 
 NUM_TRAFFIC_LIGHTS = 2
+
 # NUM_VEHICLES_PER_LIGHT = 5 # Já não criamos todos no início
 COORDINATOR_JID = f"coordinator@{XMPP_SERVER}"
 TRAFFIC_LIGHT_JIDS = [f"semaforo_{i}@{XMPP_SERVER}" for i in range(NUM_TRAFFIC_LIGHTS)]
@@ -53,26 +58,58 @@ async def generate_traffic(traffic_light_jids):
 async def main():
     global active_agents # Para poder adicionar agentes a partir daqui e de generate_traffic
     print("Iniciando configuração dos agentes...")
+    
+    with open("cenario_1.json", "r") as f:
+        cenario = json.load(f)
 
-    # --- Criar Agente Coordenador ---
-    coordinator = CoordinatorAgent(f"{COORDINATOR_JID}", PASSWORD)
-    coordinator.set("traffic_light_jids", TRAFFIC_LIGHT_JIDS)
-    await coordinator.start(auto_register=True)
-    active_agents.append(coordinator)
-    print(f"Agente Coordenador iniciado: {coordinator.jid}")
-    await asyncio.sleep(1)
-
-    # --- Criar Agentes Semáforo ---
+    semaforos_config = cenario["semaforos"]
+    
     traffic_lights = []
-    for i in range(NUM_TRAFFIC_LIGHTS):
-        semaforo_jid = TRAFFIC_LIGHT_JIDS[i]
-        traffic_light = TrafficLightAgent(semaforo_jid, PASSWORD, light_id=f"semaforo_{i}")
+    TRAFFIC_LIGHT_JIDS = []
+
+    for semaforo_id, info in semaforos_config.items():
+        jid = f"{semaforo_id}@{XMPP_SERVER}"
+        TRAFFIC_LIGHT_JIDS.append(jid)
+        
+        
+    # --- Criar Agentes Semáforo ---
+    for semaforo_id, info in semaforos_config.items():
+        jid = f"{semaforo_id}@{XMPP_SERVER}"
+        traffic_light = TrafficLightAgent(jid, PASSWORD, light_id=semaforo_id, passadeira=info["passadeira"], oposto=info["oposto"])
         traffic_light.set("coordinator_jid", COORDINATOR_JID)
+        traffic_light.set("passadeira", info["passadeira"])
+        traffic_light.set("oposto", info["oposto"])  # Guarda info do semáforo oposto, se for relevante para lógica futura
+
         await traffic_light.start(auto_register=True)
         active_agents.append(traffic_light)
         traffic_lights.append(traffic_light)
         print(f"Agente Semáforo iniciado: {traffic_light.jid}")
         await asyncio.sleep(0.5)
+        
+    dashboard_task = asyncio.create_task(dashboard_loop(traffic_lights))
+    
+    # --- Criar o dicionário dos opostos ---    
+    traffic_light_opposites = {}
+    for semaforo_id, info in semaforos_config.items():
+        jid = f"{semaforo_id}@{XMPP_SERVER}"
+        oposto_id = info.get("oposto")
+
+        if oposto_id:
+            oposto_jid = f"{oposto_id}@{XMPP_SERVER}"
+            traffic_light_opposites[jid] = oposto_jid
+        else:
+            traffic_light_opposites[jid] = None
+
+    # --- Criar Agente Coordenador ---
+    coordinator = CoordinatorAgent(f"{COORDINATOR_JID}", PASSWORD)
+    coordinator.set("traffic_light_jids", TRAFFIC_LIGHT_JIDS)
+    coordinator.set("traffic_light_opposite", traffic_light_opposites)
+    await coordinator.start(auto_register=True)
+    active_agents.append(coordinator)
+    print(f"Agente Coordenador iniciado: {coordinator.jid}")
+    await asyncio.sleep(1)
+
+    
 
     # --- Iniciar Gerador de Tráfego (em background) ---
     # Cria uma task que corre a função generate_traffic independentemente
@@ -84,12 +121,17 @@ async def main():
     print("\n--- A criar Veículo de Emergência ---")
     emergency_jid = f"ambulance_1@{XMPP_SERVER}"
     target_semaforo_for_emergency = random.choice(TRAFFIC_LIGHT_JIDS) # Escolhe um semáforo aleatório para a emergência
-    emergency_vehicle = EmergencyVehicleAgent(emergency_jid, PASSWORD)
-    emergency_vehicle.set("target_traffic_light_jid", target_semaforo_for_emergency)
-    await emergency_vehicle.start(auto_register=True)
-    active_agents.append(emergency_vehicle)
-    print(f"Agente Veículo de Emergência iniciado: {emergency_vehicle.jid} -> {target_semaforo_for_emergency}")
+    
+    # ---------------------------------------------------------------------------------------------------------
+    
+    #emergency_vehicle = EmergencyVehicleAgent(emergency_jid, PASSWORD)
+    #emergency_vehicle.set("target_traffic_light_jid", target_semaforo_for_emergency)
+    #await emergency_vehicle.start(auto_register=True)
+    #active_agents.append(emergency_vehicle)
+    #print(f"Agente Veículo de Emergência iniciado: {emergency_vehicle.jid} -> {target_semaforo_for_emergency}")
 
+    # ---------------------------------------------------------------------------------------------------------
+    
 
     print("\n--- Simulação a correr ---")
     print("Pressiona CTRL+C para parar.")
