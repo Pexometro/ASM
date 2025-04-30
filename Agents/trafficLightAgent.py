@@ -76,7 +76,6 @@ class TrafficLightAgent(Agent):
         #print(f"TL {self.light_id}: Veículo detectado. Contagem atual: {self.vehicle_count}")
 
     async def notify_waiting_vehicles(self):
-        print(f"Semáforo {self.light_id}: A enviar permissões com tempos...")
 
         for idx, vehicle_jid in enumerate(self.vehicles_queue):
             waiting_time = idx * 2  

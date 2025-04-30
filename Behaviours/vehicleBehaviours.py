@@ -47,7 +47,7 @@ class AnnounceEmergencyBehaviour(OneShotBehaviour):
         
 class WaitForPermissionBehaviour(OneShotBehaviour):
     async def run(self):
-        print(f"{self.agent.jid}: À espera de permissão...")
+        #print(f"{self.agent.jid}: À espera de permissão...")
 
         while True:
             msg = await self.receive(timeout=5)

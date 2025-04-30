@@ -38,7 +38,21 @@ class ReceiveVehicleInfoBehaviour(CyclicBehaviour):
 
             if protocol == "vehicle_presence":
                 self.agent.vehicles_queue.append(sender_jid)
-                print(f"TL {self.agent.light_id}: Presença de veículo {sender_jid} detectada.")
+                
+                if self.agent.current_state == "GREEN":
+                    print(f"TL {self.agent.light_id}: Veículo {sender_jid} detectado e já está a passar.")
+                    # Enviar mensagem de permissão para o veículo
+                    msg = Message(to=sender_jid)
+                    msg.set_metadata("performative", "inform")
+                    msg.set_metadata("protocol", "go_ahead")
+                    
+                    waiting_time = self.agent.vehicles_queue.index(sender_jid) * 0.5
+                    
+                    msg.body = json.dumps({"permission": "go", "waiting_time": waiting_time})
+                    await self.send(msg)
+                    
+                    
+                #print(f"TL {self.agent.light_id}: Presença de veículo {sender_jid} detectada.")
                 
 
             elif protocol == "emergency_alert":
