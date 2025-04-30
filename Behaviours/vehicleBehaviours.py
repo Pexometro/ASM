@@ -1,8 +1,8 @@
 from spade.behaviour import OneShotBehaviour
 from spade.message import Message
 import json
-import asyncio # <--- Importar asyncio
-import random  # <--- Importar random
+import asyncio
+import random 
 
 class AnnouncePresenceBehaviour(OneShotBehaviour):
     """Comportamento para um veículo normal anunciar presença ao semáforo após um delay."""
@@ -45,12 +45,47 @@ class AnnounceEmergencyBehaviour(OneShotBehaviour):
         await self.send(msg)
         await self.agent.stop()
         
-class ReceiveMessageBehaviour(OneShotBehaviour):
-    """Comportamento para receber mensagens do semáforo."""
-
+class WaitForPermissionBehaviour(OneShotBehaviour):
     async def run(self):
-        msg = await self.receive(timeout=10)  # Espera por uma mensagem por até 10 segundos
-        if msg:
-            print(f"VEÍCULO {self.agent.jid}: Recebeu mensagem do semáforo {msg.sender}: {msg.body}")
-        else:
-            print(f"VEÍCULO {self.agent.jid}: Não recebeu nenhuma mensagem dentro do tempo limite.")
+        print(f"{self.agent.jid}: À espera de permissão...")
+
+        while True:
+            msg = await self.receive(timeout=5)
+            if msg and msg.metadata.get("protocol") == "go_ahead":
+                
+                # Recbeu verde e agora está à espera o tempo de passagem
+                data = json.loads(msg.body)
+                waiting_time = data.get("waiting_time", 0)
+                print(f"{self.agent.jid}: Vai esperar {waiting_time}s antes de atravessar...")
+                await asyncio.sleep(waiting_time)
+                
+                # aqui volta a verificar se ainda está verde na sua vez
+                query_msg = Message(to=self.agent.target_traffic_light_jid)
+                query_msg.set_metadata("performative", "request")
+                query_msg.set_metadata("protocol", "traffic_light_state")
+                query_msg.body = "Qual o teu estado atual?"
+                await self.send(query_msg)
+
+                # Enviar confirmação de passagem
+                response = await self.receive(timeout=5)
+                
+                if response and response.metadata.get("protocol") == "traffic_light_state_reply":
+                    state = json.loads(response.body).get("state")
+                    
+                    if state == "GREEN":
+                        # Atravessa
+                        notify_msg = Message(to=self.agent.target_traffic_light_jid)
+                        notify_msg.set_metadata("performative", "inform")
+                        notify_msg.set_metadata("protocol", "vehicle_passed")
+                        notify_msg.body = json.dumps({"status": "passed"})
+                        await self.send(notify_msg)
+
+                        print(f"{self.agent.jid}: ✅ Semáforo está verde, a atravessar.")
+                        await self.agent.stop()
+                    else:
+                        print(f"{self.agent.jid}: ⚠️ Semáforo não está verde ({state}). Vai aguardar nova ordem.")
+                else:
+                    print(f"{self.agent.jid}: ❌ Sem resposta do semáforo.")
+
+            await asyncio.sleep(1)
+        

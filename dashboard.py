@@ -14,7 +14,7 @@ async def dashboard_loop(traffic_lights):
 
             for tl in traffic_lights:
                 estado = tl.current_state.upper()
-                carros = str(tl.vehicle_count)
+                carros = str(len(tl.vehicles_queue))
                 emergencia = "🚨" if estado == "RED_EMERGENCY" else "➖"
 
                 # Tratamento do estado visual

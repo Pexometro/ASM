@@ -50,7 +50,6 @@ class ControlLogicBehaviour(PeriodicBehaviour):
     Envia comandos aos TrafficLightAgents.
     """
     async def run(self):
-        print("\nCOORD: Executando lógica de controlo...")
 
         busiest_traffic_light = (None, 0)  # (jid, count)
         
@@ -92,7 +91,6 @@ class ControlLogicBehaviour(PeriodicBehaviour):
         if busiest_traffic_light[0]:
             traffic_light_oposite = self.agent.traffic_light_opposites[busiest_traffic_light[0]]
             
-            print(f"--------------------------->  opposite: {traffic_light_oposite}")
             if traffic_light_oposite:
                 await self.send_command(traffic_light_oposite, "SET_STATE", {"state": "RED"})
             

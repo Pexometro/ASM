@@ -43,7 +43,7 @@ async def generate_traffic(traffic_light_jids):
             vehicle_id = str(uuid.uuid4())[:8] # ID curto
             vehicle_jid = f"vehicle_{vehicle_id}@{XMPP_SERVER}"
 
-            print(f"--- Gerando novo veículo {vehicle_jid} para {target_semaforo_jid} ---")
+            #print(f"--- Gerando novo veículo {vehicle_jid} para {target_semaforo_jid} ---")
             vehicle = VehicleAgent(vehicle_jid, PASSWORD)
             vehicle.set("target_traffic_light_jid", target_semaforo_jid)
 

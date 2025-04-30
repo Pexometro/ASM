@@ -1,4 +1,5 @@
 from spade.behaviour import CyclicBehaviour, PeriodicBehaviour
+from spade.behaviour import OneShotBehaviour
 from spade.message import Message
 import json
 
@@ -36,8 +37,9 @@ class ReceiveVehicleInfoBehaviour(CyclicBehaviour):
             protocol = msg.metadata.get("protocol")
 
             if protocol == "vehicle_presence":
-                self.agent.increment_vehicle_count()
-                #print(f"TL {self.agent.light_id}: Veículo normal {sender_jid} detectado.")
+                self.agent.vehicles_queue.append(sender_jid)
+                print(f"TL {self.agent.light_id}: Presença de veículo {sender_jid} detectada.")
+                
 
             elif protocol == "emergency_alert":
                 print(f"TL {self.agent.light_id}: ALERTA de veículo de emergência {sender_jid} recebido diretamente.")
@@ -48,13 +50,39 @@ class ReceiveVehicleInfoBehaviour(CyclicBehaviour):
                 msg.set_metadata("protocol", "emergency_alert")
                 msg.body = json.dumps({"emergency_vehicle_jid": sender_jid})
                 await self.send(msg)
+                
+            elif protocol == "traffic_light_state":
+                response = Message(to=str(msg.sender))
+                response.set_metadata("performative", "inform")
+                response.set_metadata("protocol", "traffic_light_state_reply")
+                
+                response.body = json.dumps({"state": self.agent.current_state})
+                await self.send(response)
+                
+            elif protocol == "vehicle_passed":
+                status = json.loads(msg.body).get("status")
+
+                if status == "passed":
+                    if sender_jid in self.agent.vehicles_queue:
+                        self.agent.vehicles_queue.remove(sender_jid)
+                        
+                        print(f"TL {self.agent.light_id}:Veículo {sender_jid} confirmou que passou. Removido da fila.")
+                        
+                        current_count = len(self.agent.vehicles_queue)
+                        msg = Message(to=self.agent.coordinator_jid)
+                        msg.set_metadata("performative", "inform")
+                        msg.set_metadata("protocol", "traffic_report")
+                        msg.body = json.dumps({"count": current_count, "current_state": self.agent.current_state})
+                        await self.send(msg)
+                    else:
+                        print(f"TL {self.agent.light_id}: Veículo {sender_jid} não estava na fila.")
 
 
 class ReportStatusBehaviour(PeriodicBehaviour):
     """Envia periodicamente o número de veículos detectados ao Coordenador."""
     async def run(self):
         # Reporta a contagem atual PRIMEIRO
-        current_count = self.agent.vehicle_count
+        current_count = len(self.agent.vehicles_queue)
         
         if current_count > 0:
             print(f"TL {self.agent.light_id}: Reportando {current_count} veículos ao Coordenador.")
@@ -70,3 +98,20 @@ class ReportStatusBehaviour(PeriodicBehaviour):
         #else:
             # Se a contagem for 0, não reporta nada (opcional, pode querer reportar 0)
             # print(f"TL {self.agent.light_id}: Sem veículos para reportar.")
+
+class SendGoAheadBehaviour(OneShotBehaviour):
+    def __init__(self, target_jid, waiting_time):
+        super().__init__()
+        self.target_jid = target_jid
+        self.waiting_time = waiting_time
+
+    async def run(self):
+        msg = Message(to=self.target_jid)
+        msg.set_metadata("performative", "inform")
+        msg.set_metadata("protocol", "go_ahead")
+        msg.body = json.dumps({
+            "permission": "go",
+            "waiting_time": self.waiting_time
+        })
+        await self.send(msg)
+        print(f"✅ Semáforo {self.agent.light_id}: Permissão enviada a {self.target_jid} (waiting {self.waiting_time}s)")

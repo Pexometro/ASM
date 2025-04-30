@@ -1,6 +1,7 @@
 from spade.agent import Agent
 from spade.template import Template
-from Behaviours.trafficLightBehaviours import ReceiveCommandsBehaviour, ReceiveVehicleInfoBehaviour, ReportStatusBehaviour
+from Behaviours.trafficLightBehaviours import ReceiveCommandsBehaviour, ReceiveVehicleInfoBehaviour, ReportStatusBehaviour, SendGoAheadBehaviour
+from spade.behaviour import OneShotBehaviour
 import random
 from spade.message import Message
 import asyncio
@@ -16,7 +17,7 @@ class TrafficLightAgent(Agent):
         super().__init__(jid, password, **kwargs)
         self.light_id = light_id # ID único para o semáforo (ex: "TL_1")
         self.current_state = "RED" # Estado inicial
-        self.vehicle_count = 0     # Contagem de veículos desde o último report
+        self.vehicles_queue = []
         self.coordinator_jid = None # Será definido no setup
         self.passadeira = passadeira 
         self.oposto = oposto
@@ -38,13 +39,14 @@ class TrafficLightAgent(Agent):
         # Comportamento para receber info de Veículos (normais e emergência)
         # Ouve por 'inform' de qualquer veículo
         vehicle_info_template = Template()
-        vehicle_info_template.set_metadata("performative", "inform")
-        # Adicionar filtro por protocolo se necessário (ex: "vehicle_presence", "emergency_vehicle")
         self.add_behaviour(ReceiveVehicleInfoBehaviour(), vehicle_info_template)
+        # Adicionar filtro por protocolo se necessário (ex: "vehicle_presence", "emergency_vehicle")
 
         # Comportamento periódico para reportar estado/tráfego ao Coordenador
         # Reporta a cada 4 segundos (um pouco antes da lógica do coordenador)
         self.add_behaviour(ReportStatusBehaviour(period=4))
+        
+        
 
         print(f"Agente Semáforo {self.jid} ({self.light_id}) configurado. Estado inicial: {self.current_state}")
 
@@ -64,20 +66,19 @@ class TrafficLightAgent(Agent):
                 await asyncio.sleep(5) 
                 
                 self.current_state = "GREEN"
+                                
+                self.emptying_task = asyncio.create_task(self.notify_waiting_vehicles())
                 
-                self.reset_vehicle_count()
                 
-                print(f"--- SEMÁFORO {self.light_id} ({self.jid}): MUDOU PARA VERDE ---")
-                
-        
-
     def increment_vehicle_count(self):
         """Incrementa a contagem de veículos."""
         self.vehicle_count += 1
         #print(f"TL {self.light_id}: Veículo detectado. Contagem atual: {self.vehicle_count}")
 
-    def reset_vehicle_count(self):
-        """Reinicia a contagem de veículos."""
-        count = self.vehicle_count
-        self.vehicle_count = 0
-        return count
+    async def notify_waiting_vehicles(self):
+        print(f"Semáforo {self.light_id}: A enviar permissões com tempos...")
+
+        for idx, vehicle_jid in enumerate(self.vehicles_queue):
+            waiting_time = idx * 2  
+            behaviour = SendGoAheadBehaviour(vehicle_jid, waiting_time)
+            self.add_behaviour(behaviour)
