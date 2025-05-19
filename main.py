@@ -53,6 +53,28 @@ async def generate_traffic(traffic_light_jids):
         except Exception as e:
             print(f"Erro no gerador de tráfego: {e}")
             await asyncio.sleep(5) # Espera antes de tentar novamente
+            
+async def generate_emergencies(traffic_light_jids):
+    """Gera veículos de emergência de forma aleatória."""
+    print("--- Gerador de Emergências Iniciado ---")
+    while True:
+        try:
+            await asyncio.sleep(random.uniform(30.0, 60.0))  # tempo entre emergências
+
+            emergency_id = str(uuid.uuid4())[:8]
+            emergency_jid = f"ambulance_{emergency_id}@{XMPP_SERVER}"
+            target_semaforo_jid = random.choice(traffic_light_jids)
+
+            emergency_vehicle = EmergencyVehicleAgent(emergency_jid, PASSWORD)
+            emergency_vehicle.set("target_traffic_light_jid", target_semaforo_jid)
+
+            await emergency_vehicle.start(auto_register=True)
+            active_agents.append(emergency_vehicle)
+            print(f"🚑 Nova ambulância: {emergency_jid} → {target_semaforo_jid}")
+
+        except Exception as e:
+            print(f"Erro no gerador de emergência: {e}")
+            await asyncio.sleep(10)
 
 
 async def main():
@@ -114,6 +136,7 @@ async def main():
     # --- Iniciar Gerador de Tráfego (em background) ---
     # Cria uma task que corre a função generate_traffic independentemente
     traffic_task = asyncio.create_task(generate_traffic(TRAFFIC_LIGHT_JIDS))
+    emergency_task = asyncio.create_task(generate_emergencies(TRAFFIC_LIGHT_JIDS))
 
     # --- Criar Agente Veículo de Emergência (Dummy) ---
     # Exemplo: criar uma ambulância após 20 segundos (dá tempo para algum tráfego se acumular)
@@ -124,11 +147,11 @@ async def main():
     
     # ---------------------------------------------------------------------------------------------------------
     
-    #emergency_vehicle = EmergencyVehicleAgent(emergency_jid, PASSWORD)
-    #emergency_vehicle.set("target_traffic_light_jid", target_semaforo_for_emergency)
-    #await emergency_vehicle.start(auto_register=True)
-    #active_agents.append(emergency_vehicle)
-    #print(f"Agente Veículo de Emergência iniciado: {emergency_vehicle.jid} -> {target_semaforo_for_emergency}")
+    emergency_vehicle = EmergencyVehicleAgent(emergency_jid, PASSWORD)
+    emergency_vehicle.set("target_traffic_light_jid", target_semaforo_for_emergency)
+    await emergency_vehicle.start(auto_register=True)
+    active_agents.append(emergency_vehicle)
+    print(f"Agente Veículo de Emergência iniciado: {emergency_vehicle.jid} -> {target_semaforo_for_emergency}")
 
     # ---------------------------------------------------------------------------------------------------------
     
@@ -148,6 +171,12 @@ async def main():
             await traffic_task # Espera que a tarefa seja cancelada
         except asyncio.CancelledError:
             print("Gerador de tráfego parado.")
+            
+        emergency_task.cancel()
+        try:
+            await emergency_task
+        except asyncio.CancelledError:
+            print("Gerador de emergências parado.")
 
         print("A parar agentes...")
         # Faz uma cópia da lista para iterar, caso haja modificações durante o stop

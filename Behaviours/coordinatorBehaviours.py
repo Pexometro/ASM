@@ -1,9 +1,11 @@
 from spade.behaviour import CyclicBehaviour, PeriodicBehaviour
 from spade.message import Message
 import json # Para enviar dados estruturados no corpo da mensagem
+import time 
 
 # Limiar de tráfego para considerar ajuste (exemplo)
 TRAFFIC_THRESHOLD = 1
+MIN_GREEN_INTERVAL = 15  
 
 class ReceiveReportBehaviour(CyclicBehaviour):
     """
@@ -49,52 +51,43 @@ class ControlLogicBehaviour(PeriodicBehaviour):
     Executa periodicamente a lógica de controlo dos semáforos.
     Envia comandos aos TrafficLightAgents.
     """
+    
     async def run(self):
+        # 1. Lógica de emergência tem prioridade
+        for tl_jid, is_emergency in self.agent.emergency_mode.items():
+            if is_emergency:
+                print(f"COORD: Emergência detectada em {tl_jid}!")
 
-        busiest_traffic_light = (None, 0)  # (jid, count)
-        
-        # Lógica Simplificada:
+                opposite = self.agent.traffic_light_opposites.get(tl_jid)
+                if opposite:
+                    await self.send_command(opposite, "SET_STATE", {"state": "RED"})
+                
+                await self.send_command(tl_jid, "SET_STATE", {"state": "GREEN", "by_emergency": True})
+
+                # Reset do estado de emergência
+                self.agent.emergency_mode[tl_jid] = False
+                return  # Prioridade total à emergência neste ciclo
+
+        # 2. Lógica normal adaptativa (quando não há emergência)
+        now = time.time()
+        busiest_traffic_light = (None, 0)
+
         for tl_jid in self.agent.traffic_light_jids:
-            
-            # DEPOIS TRATAR DA LÓGICA AQUI DA EMERGENICIA, ESTÁ MEIO JINGADO METER MELHOR -----------------------------------
-            
-            ## 1. Prioridade Emergência: Se há emergência, força vermelho (exceto talvez o próprio?)
-            #if self.agent.emergency_mode[tl_jid]:
-            #    print(f"COORD: Emergência detectada para {tl_jid}. Enviando comando VERMELHO.")
-            #    await self.send_command(tl_jid, "SET_STATE", {"state": "RED_EMERGENCY"})
-            #    # Reset do estado de emergência após comando (lógica pode precisar ser mais robusta)
-            #    # self.agent.emergency_mode[tl_jid] = False # Onde/Como resetar? Talvez após confirmação?
-            #    continue # Processa próximo semáforo
-
-            # 2. Lógica Adaptativa (Exemplo muito básico):
-            #    Se um semáforo tem muito tráfego e outro pouco, ajusta tempos (simulado aqui por comando direto)
-            #    NOTA: Isto é uma simplificação extrema. Uma lógica real seria muito mais complexa,
-            #          envolvendo ciclos, tempos de verde/amarelo/vermelho, coordenação entre semáforos, etc.
-            
             current_count = self.agent.traffic_data.get(tl_jid, 0)
-            
-            if current_count > busiest_traffic_light[1]:
+
+            # Verifica se já passou o cooldown
+            time_since_green = now - self.agent.last_green_time.get(tl_jid, 0)
+
+            if current_count > busiest_traffic_light[1] and time_since_green >= MIN_GREEN_INTERVAL:
                 busiest_traffic_light = (tl_jid, current_count)
-            
-            
-            #if current_count > TRAFFIC_THRESHOLD:
-            #    print(f"COORD: Tráfego ALTO ({current_count}) em {tl_jid}. Enviando comando VERDE_LONGO (simulado).")
-            #    # Simulação: apenas manda mudar para verde. A duração seria gerida no semáforo ou aqui.
-            #    await self.send_command(tl_jid, "SET_STATE", {"state": "GREEN", "duration": 30}) # Duração exemplo
-            #else:
-            #    print(f"COORD: Tráfego BAIXO ({current_count}) em {tl_jid}. Enviando comando VERMELHO (simulado).")
-            #    await self.send_command(tl_jid, "SET_STATE", {"state": "RED"})
-#
-            ## Limpa a contagem após processar (ou acumula por mais tempo?)
-            #self.agent.traffic_data[tl_jid] = 0
-        
+
         if busiest_traffic_light[0]:
-            traffic_light_oposite = self.agent.traffic_light_opposites[busiest_traffic_light[0]]
-            
-            if traffic_light_oposite:
-                await self.send_command(traffic_light_oposite, "SET_STATE", {"state": "RED"})
-            
+            opposite = self.agent.traffic_light_opposites[busiest_traffic_light[0]]
+            if opposite:
+                await self.send_command(opposite, "SET_STATE", {"state": "RED"})
+
             await self.send_command(busiest_traffic_light[0], "SET_STATE", {"state": "GREEN"})
+            self.agent.last_green_time[busiest_traffic_light[0]] = now
 
     async def send_command(self, target_jid, command_protocol, body_dict):
         """Envia uma mensagem de comando para um semáforo."""

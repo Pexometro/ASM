@@ -1,6 +1,7 @@
 from spade.agent import Agent
 from spade.template import Template
 from Behaviours.coordinatorBehaviours import ReceiveReportBehaviour, ControlLogicBehaviour
+import time
 
 class CoordinatorAgent(Agent):
     """
@@ -10,11 +11,13 @@ class CoordinatorAgent(Agent):
     async def setup(self):
         print(f"Agente Coordenador {self.jid} a iniciar...")
 
+        self.traffic_light_jids = self.get("traffic_light_jids")
+        
         self.traffic_data = {}           
         self.emergency_mode = {}         
         self.traffic_light_opposites = {} 
+        self.last_green_time = {jid: 0 for jid in self.traffic_light_jids}
         
-        self.traffic_light_jids = self.get("traffic_light_jids")
         traffic_light_opposite_map = self.get("traffic_light_opposite")  
 
         for jid in self.traffic_light_jids:

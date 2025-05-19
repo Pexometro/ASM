@@ -19,6 +19,8 @@ class ReceiveCommandsBehaviour(CyclicBehaviour):
                     # FAZER FUNÇÃO DE TRANSAÇÃOD E VERMELHO - AMARELO - VERDE
                     
                     if new_state in ["RED", "GREEN", "YELLOW", "RED_EMERGENCY"]:
+                        by_emergency = data.get("by_emergency", False)
+                        self.agent.emergency_active = bool(by_emergency)
                         await self.agent.set_state(new_state)
 
                     else:
