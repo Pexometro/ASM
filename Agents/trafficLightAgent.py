@@ -54,12 +54,17 @@ class TrafficLightAgent(Agent):
         """Atualiza o estado do semáforo e imprime a mudança."""
         if self.current_state != new_state:
             if new_state == "RED":
-                self.current_state = "YELLOW"
-                print(f"--- SEMÁFORO {self.light_id} ({self.jid}): MUDOU PARA AMARELO ---")
-                await asyncio.sleep(5)  
-                
-                self.current_state = "RED"
-                print(f"--- SEMÁFORO {self.light_id} ({self.jid}): MUDOU PARA VERMELHO ---")
+                if self.current_state == "GREEN":
+                    self.current_state = "YELLOW"
+                    print(f"--- SEMÁFORO {self.light_id}: MUDOU PARA AMARELO ---")
+                    await asyncio.sleep(5)
+                    self.current_state = "RED"
+                    print(f"--- SEMÁFORO {self.light_id}: MUDOU PARA VERMELHO ---")
+                elif self.current_state != "RED":
+                    # Se estiver em YELLOW (transição já em curso) ou outro estado inesperado
+                    await asyncio.sleep(1)
+                    self.current_state = "RED"
+                    print(f"--- SEMÁFORO {self.light_id}: Forçado a VERMELHO ---")
                 
             elif new_state == "GREEN":
                 print(f"--- SEMÁFORO {self.light_id} ({self.jid}): RECEBEU O COMANDO E VAI AGUARDAR 5 SEGUNDOS PARA MUDAR PARA VERDE ---")

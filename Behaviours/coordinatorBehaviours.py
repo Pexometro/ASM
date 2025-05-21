@@ -78,7 +78,7 @@ class ControlLogicBehaviour(PeriodicBehaviour):
             # Verifica se já passou o cooldown
             time_since_green = now - self.agent.last_green_time.get(tl_jid, 0)
 
-            if current_count > busiest_traffic_light[1] and time_since_green >= MIN_GREEN_INTERVAL:
+            if current_count > busiest_traffic_light[1]:
                 busiest_traffic_light = (tl_jid, current_count)
 
         if busiest_traffic_light[0]:
