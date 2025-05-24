@@ -48,6 +48,6 @@ class CoordinatorAgent(Agent):
 
         # Comportamento periódico para tomar decisões de controlo
         # Executa a lógica a cada 5 segundos (ajustável)
-        self.add_behaviour(ControlLogicBehaviour(period=5))
+        self.add_behaviour(ControlLogicBehaviour(period=7))
 
         print(f"Agente Coordenador {self.jid} configurado.")
