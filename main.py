@@ -14,7 +14,7 @@ from dashboard import dashboard_loop
 
 
 # --- Configuração (ajusta conforme necessário) ---
-XMPP_SERVER = "rui-hp-envy-x360-convertible-15-ed1xxx"  # Ou o teu servidor XMPP
+XMPP_SERVER = "thinkpad"  # Ou o teu servidor XMPP
 PASSWORD = "NOPASSWORD"      # Password (usa uma segura se necessário)
 
 NUM_TRAFFIC_LIGHTS = 2
